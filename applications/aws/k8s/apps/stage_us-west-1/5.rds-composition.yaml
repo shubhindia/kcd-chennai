@@ -1,0 +1,121 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: postgresql-aws-full
+  labels:
+    provider: aws
+spec:
+  compositeTypeRef:
+    apiVersion: database.example.org/v1alpha1
+    kind: PostgreSQLInstance
+  resources:
+    # 1. VPC
+    - name: vpc
+      base:
+        apiVersion: ec2.aws.crossplane.io/v1beta1
+        kind: VPC
+        spec:
+          forProvider:
+            cidrBlock: 10.0.0.0/16
+            enableDnsHostnames: true
+            enableDnsSupport: true
+            region: us-east-1
+          providerConfigRef:
+            name: aws-provider
+          deletionPolicy: Delete
+      patches:
+        - fromFieldPath: "spec.parameters.region"
+          toFieldPath: "spec.forProvider.region"
+
+    # 2. Subnet
+    - name: subnet
+      base:
+        apiVersion: ec2.aws.crossplane.io/v1beta1
+        kind: Subnet
+        spec:
+          forProvider:
+            cidrBlock: 10.0.1.0/24
+            region: us-east-1
+            vpcIdSelector:
+              matchControllerRef: true
+          providerConfigRef:
+            name: aws-provider
+          deletionPolicy: Delete
+      patches:
+        - fromFieldPath: "spec.parameters.region"
+          toFieldPath: "spec.forProvider.region"
+
+    # 3. DBSubnetGroup
+    - name: dbsubnetgroup
+      base:
+        apiVersion: rds.aws.crossplane.io/v1beta1
+        kind: DBSubnetGroup
+        spec:
+          forProvider:
+            description: "Subnet group for RDS"
+            subnetIdSelector:
+              matchControllerRef: true
+          providerConfigRef:
+            name: aws-provider
+          deletionPolicy: Delete
+
+    # 4. SecurityGroup
+    - name: securitygroup
+      base:
+        apiVersion: ec2.aws.crossplane.io/v1beta1
+        kind: SecurityGroup
+        spec:
+          forProvider:
+            description: Allow PostgreSQL traffic
+            groupName: allow-postgres
+            region: us-east-1
+            vpcIdSelector:
+              matchControllerRef: true
+            ingress:
+              - fromPort: 5432
+                toPort: 5432
+                ipProtocol: tcp
+                cidrBlocks:
+                  - 0.0.0.0/0
+          providerConfigRef:
+            name: aws-provider
+          deletionPolicy: Delete
+      patches:
+        - fromFieldPath: "spec.parameters.region"
+          toFieldPath: "spec.forProvider.region"
+
+    # 5. RDS Instance
+    - name: rdsinstance
+      base:
+        apiVersion: rds.aws.crossplane.io/v1beta1
+        kind: DBInstance
+        spec:
+          forProvider:
+            region: us-east-1
+            dbInstanceClass: db.t3.micro
+            engine: postgres
+            engineVersion: "15"
+            masterUsername: masteruser
+            publiclyAccessible: false
+            allocatedStorage: 20
+            skipFinalSnapshotBeforeDeletion: true
+            dbSubnetGroupNameSelector:
+              matchControllerRef: true
+            vpcSecurityGroupIDSelector:
+              matchControllerRef: true
+            dbName: exampledb
+          writeConnectionSecretToRef:
+            namespace: crossplane-system
+            name: rds-conn
+          providerConfigRef:
+            name: aws-provider
+      patches:
+        - fromFieldPath: "spec.parameters.storageGB"
+          toFieldPath: "spec.forProvider.allocatedStorage"
+        - fromFieldPath: "spec.parameters.version"
+          toFieldPath: "spec.forProvider.engineVersion"
+        - fromFieldPath: "spec.parameters.instanceClass"
+          toFieldPath: "spec.forProvider.dbInstanceClass"
+        - fromFieldPath: "spec.parameters.region"
+          toFieldPath: "spec.forProvider.region"
+

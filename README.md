@@ -23,3 +23,5 @@ This demo shows how to provision an Amazon RDS PostgreSQL instance on AWS using 
 - `instance.yaml` – Deploy a standalone RDS instance.
 - `composition.yaml` – Full RDS setup with networking (VPC, Subnet, SecurityGroup) and database.
 
+## KCD Chennai
+- [Presentation](https://docs.google.com/presentation/d/1_Fd5y4jsnagINvF3ffF9_O-yc8nl2bh--9gq8PTV3lQ/edit?usp=sharing)
